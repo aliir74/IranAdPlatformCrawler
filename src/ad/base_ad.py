@@ -8,4 +8,4 @@ class BaseAd:
     token: str
 
     def to_json(self) -> str:
-        return json.dumps(self.__dict__)
+        return json.dumps(self.__dict__, ensure_ascii=False)

@@ -3,10 +3,12 @@ from ad.base_ad import BaseAd
 from constance import REDIS_HOST, REDIS_PORT
 from db.base_db import BaseDB
 
+import logging
+logger = logging.getLogger(__name__)
 
 class RedisDB(BaseDB):
     def __init__(self, db_name: int):
-        self.service = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=db_name)
+        self.service = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=db_name, decode_responses=True)
 
     def is_new_ad(self, token: str) -> bool:
         return self.service.exists(token) == 0
