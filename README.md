@@ -9,7 +9,7 @@ This is a site crawler written based on crawling the iranian ad sites. For now, 
 
 ### Note
 - Every time crawler find a new/changed ad, it prints the link of the ad to the console.
-- You can set a [IFTTT](https://ifttt.com/) webhook to get a notification when the crawler finds a new/changed ad.
+- You can set a [IFTTT](https://ifttt.com/create) webhook (3 value option) to get a notification when the crawler finds a new/changed ad.
 
 
 
