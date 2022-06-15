@@ -25,7 +25,6 @@ class DivarCrawler(BaseCrawler):
         reach_old_ads = False
         while (retry_reach_to_end_of_page < 3) and (not reach_old_ads):
             data = driver.page_source
-            logger.info(f'data:\n {data}')
             ads = self._extract_ads(data)
             new_ads, changed_ads, reach_old_ads = self._save_ads(ads)
             notif_new_ads.extend(new_ads)
@@ -40,6 +39,7 @@ class DivarCrawler(BaseCrawler):
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
                 # we reached to end of the page
+                logger.info('Reached to end of the page')
                 retry_reach_to_end_of_page += 1
             last_height = new_height
         return notif_new_ads, notif_changed_ads
@@ -49,16 +49,17 @@ class DivarCrawler(BaseCrawler):
         soup = BeautifulSoup(data, 'html.parser')
         body = soup.find('body')
         cards = body.find_all(class_='post-card-item')
-        cards = list(filter(lambda x: x.find('div', class_='kt-post-card__title') is not None, cards))
+        cards = list(filter(lambda x: x.find(class_='kt-post-card__title') is not None, cards))
+        logger.info(f'Found {len(cards)} ads')
         cards_data = []
         for c in cards:
-            logger.info(f'card: {c}')
             title = c.find(class_='kt-post-card__title').get_text()
             price_description = c.find(class_='kt-post-card__description').get_text()
             link = c.find('a', href=True)['href']
             neighborhood = c.find('span', class_='kt-post-card__bottom-description').get_text()
             token = 'divar:'+link.split('/')[-1]
-            cards_data.append(DivarAd(title, price_description, link, neighborhood, token))
+            ad = DivarAd(title, price_description, link, neighborhood, token)
+            cards_data.append(ad)
         return cards_data
 
     def _save_ads(self, ads: List[DivarAd]) -> (List[DivarAd], List[DivarAd], bool):
@@ -84,7 +85,7 @@ class DivarCrawler(BaseCrawler):
         changed_str = '  آگهی تغییر یافته  ' if changed_ad else '   '
         for ad in ads:
             # To prevent loss any ads if any error occurred
-            print(f'new ad notif: {ad.link}')
+            logger.info(f'new ad notif: {ad.link}')
             try:
                 rq.post(
                     "%s/trigger/notify/with/key/%s?value1=%s&value2=%s&value3=%s" % (IFTTT_URL, IFTTT_KEY, ad.link,
@@ -102,7 +103,8 @@ class DivarCrawler(BaseCrawler):
             new_ads, changed_ads = self._get_new_ads()
             logger.info(f'Got {len(new_ads)} new ads and {len(changed_ads)} changed ads!')
             logger.info('Starting sending notification to telegram group')
-            # self._send_notif(new_ads)
-            # self._send_notif(changed_ads, changed_ad=True)
+            self._send_notif(new_ads)
+            self._send_notif(changed_ads, changed_ad=True)
+            logger.info(f'Wait for next crawl {self.refresh_sleep} seconds')
             time.sleep(self.refresh_sleep)
 
