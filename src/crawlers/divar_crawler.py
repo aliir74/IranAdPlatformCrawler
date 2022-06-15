@@ -1,3 +1,4 @@
+import os.path
 import time
 from datetime import datetime
 from typing import List, Tuple
@@ -7,7 +8,7 @@ import logging
 
 from ad.divar_ad import DivarAd
 from crawlers.base_crawler import BaseCrawler
-from constance import SCROLL_PAUSE_TIME, IFTTT_URL, IFTTT_KEY
+from constance import SCROLL_PAUSE_TIME, IFTTT_URL, IFTTT_KEY, IFTTT_EVENT
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,7 @@ class DivarCrawler(BaseCrawler):
             last_height = new_height
         return notif_new_ads, notif_changed_ads
 
-    @staticmethod
-    def _extract_ads(data: str) -> List[DivarAd]:
+    def _extract_ads(self, data: str) -> List[DivarAd]:
         soup = BeautifulSoup(data, 'html.parser')
         body = soup.find('body')
         cards = body.find_all(class_='post-card-item')
@@ -53,14 +53,28 @@ class DivarCrawler(BaseCrawler):
         logger.info(f'Found {len(cards)} ads')
         cards_data = []
         for c in cards:
-            title = c.find(class_='kt-post-card__title').get_text()
-            price_description = c.find(class_='kt-post-card__description').get_text()
-            link = c.find('a', href=True)['href']
-            neighborhood = c.find('span', class_='kt-post-card__bottom-description').get_text()
-            token = 'divar:'+link.split('/')[-1]
-            ad = DivarAd(title, price_description, link, neighborhood, token)
+            title = self._get_element_from_dom(c.find(class_='kt-post-card__title').get_text)
+            price_description = self._get_element_from_dom(c.find(class_='kt-post-card__description').get_text)
+            neighborhood = self._get_element_from_dom(
+                c.find('span', class_='kt-post-card__bottom-description').get_text)
+            try:
+                link = 'https://divar.ir' + c.find('a', href=True).get('href')
+            except Exception:
+                logger.exception(f"cannot get link for {title}")
+                continue
+            token = 'divar:' + link.split('/')[-1]
+            ad = DivarAd(title=title, price_description=price_description, link=link, neighborhood=neighborhood,
+                         token=token)
             cards_data.append(ad)
         return cards_data
+
+    @staticmethod
+    def _get_element_from_dom(getter_function: callable) -> str:
+        try:
+            return getter_function()
+        except Exception:
+            logger.warning('Cannot get element from dom', exc_info=True)
+            return ''
 
     def _save_ads(self, ads: List[DivarAd]) -> (List[DivarAd], List[DivarAd], bool):
         new_ads_cnt = 0
@@ -84,14 +98,11 @@ class DivarCrawler(BaseCrawler):
     def _send_notif(self, ads: List[DivarAd], changed_ad=False):
         changed_str = '  آگهی تغییر یافته  ' if changed_ad else '   '
         for ad in ads:
-            # To prevent loss any ads if any error occurred
-            logger.info(f'new ad notif: {ad.link}')
+            url = os.path.join(IFTTT_URL, 'trigger', IFTTT_EVENT, 'with', 'key', IFTTT_KEY)
+            query_params = {'value1': ad.link, 'value2': changed_str + ad.neighborhood + " " + ad.title,
+                            'value3': ad.price_description}
             try:
-                rq.post(
-                    "%s/trigger/notify/with/key/%s?value1=%s&value2=%s&value3=%s" % (IFTTT_URL, IFTTT_KEY, ad.link,
-                                                                                     changed_str + ad.neighborhood + ' '
-                                                                                     + ad.title,
-                                                                                     ad.price_description))
+                rq.post(url, params=query_params)
             except Exception:
                 logger.exception(f"cannot send notif for {ad}")
                 self.db.delete_ad(ad.token)
@@ -107,4 +118,3 @@ class DivarCrawler(BaseCrawler):
             self._send_notif(changed_ads, changed_ad=True)
             logger.info(f'Wait for next crawl {self.refresh_sleep} seconds')
             time.sleep(self.refresh_sleep)
-
