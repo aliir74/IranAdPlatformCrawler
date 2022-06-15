@@ -15,7 +15,7 @@ services:
     build: .
     command: >
       /bin/bash -c "
-      sudo /usr/bin/python3 main.py
+      python3 main.py
       "
     depends_on:
       - redis
