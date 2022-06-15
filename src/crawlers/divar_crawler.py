@@ -27,9 +27,10 @@ class DivarCrawler(BaseCrawler):
         while (retry_reach_to_end_of_page < 3) and (not reach_old_ads):
             data = driver.page_source
             ads = self._extract_ads(data)
-            new_ads, changed_ads, reach_old_ads = self._save_ads(ads)
+            new_ads, changed_ads = self._save_ads(ads)
             notif_new_ads.extend(new_ads)
             notif_changed_ads.extend(changed_ads)
+            reach_old_ads = self._reach_last_week_ads(ads)
             # Scroll down to bottom
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
@@ -43,14 +44,25 @@ class DivarCrawler(BaseCrawler):
                 logger.info('Reached to end of the page')
                 retry_reach_to_end_of_page += 1
             last_height = new_height
+        else:
+            if retry_reach_to_end_of_page == 3:
+                logger.info('Reached to end of the page 3 times')
+            elif reach_old_ads:
+                logger.info('Reached to old ads')
         return notif_new_ads, notif_changed_ads
+
+    @staticmethod
+    def _reach_last_week_ads(ads: List[DivarAd]) -> bool:
+        for ad in ads:
+            if 'هفته' in ad.neighborhood:
+                return True
+        return False
 
     def _extract_ads(self, data: str) -> List[DivarAd]:
         soup = BeautifulSoup(data, 'html.parser')
         body = soup.find('body')
         cards = body.find_all(class_='post-card-item')
         cards = list(filter(lambda x: x.find(class_='kt-post-card__title') is not None, cards))
-        logger.info(f'Found {len(cards)} ads')
         cards_data = []
         for c in cards:
             title = self._get_element_from_dom(c.find(class_='kt-post-card__title').get_text)
@@ -76,9 +88,8 @@ class DivarCrawler(BaseCrawler):
             logger.warning('Cannot get element from dom', exc_info=True)
             return ''
 
-    def _save_ads(self, ads: List[DivarAd]) -> (List[DivarAd], List[DivarAd], bool):
+    def _save_ads(self, ads: List[DivarAd]) -> (List[DivarAd], List[DivarAd]):
         new_ads_cnt = 0
-        reach_old_ads = False
         new_ads = []
         changed_ads = []
         for ad in ads:
@@ -91,9 +102,7 @@ class DivarCrawler(BaseCrawler):
                     self.db.save_ad(ad)
                     new_ads_cnt += 1
                     changed_ads.append(ad)
-                else:
-                    reach_old_ads = True
-        return new_ads, changed_ads, reach_old_ads
+        return new_ads, changed_ads
 
     def _send_notif(self, ads: List[DivarAd], changed_ad=False):
         changed_str = '  آگهی تغییر یافته  ' if changed_ad else '   '
