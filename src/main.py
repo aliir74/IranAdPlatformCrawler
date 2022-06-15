@@ -1,6 +1,3 @@
-import logging
-import time
-
 from constance import DIVAR_URL
 from db.redis import RedisDB
 from crawlers.divar_crawler import DivarCrawler

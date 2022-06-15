@@ -1,5 +1,5 @@
 import os
-SCROLL_PAUSE_TIME = os.getenv('SCROLL_PAUSE_TIME', 5)
+SCROLL_PAUSE_TIME = int(os.getenv('SCROLL_PAUSE_TIME', 5))
 REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
 REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 IFTTT_URL = os.getenv('IFTTT_URL', 'https://maker.ifttt.com/')
